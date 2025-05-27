@@ -1,8 +1,9 @@
 # 🚀 Interium KERNEL
 
-![Interium OS Logo](https://raw.githubusercontent.com/ShadowFlash900/INTERIUMOS/main/docs/logo.png)
+![INTERIUMLOGO](https://github.com/user-attachments/assets/9580ee5c-2191-4cfb-8a52-6164384a2779)
 
-> **Interium OS** — современная консольная "операционная система" на Python с поддержкой приложений, системой пользователей, профилей, пакетным менеджером, сервисами и множеством инструментов для эмуляции настоящей ОС в терминале.
+
+> **Interium OS** — Консольное ядро псевдо системы interium, полностью кастомизированая система!
 
 ---
 
@@ -76,8 +77,10 @@ getlist https://github.com/USER/REPO
 
 ## 🖼️ Скриншоты
 
-![term1](https://raw.githubusercontent.com/ShadowFlash900/INTERIUMOS/main/docs/screenshot1.png)
-![term2](https://raw.githubusercontent.com/ShadowFlash900/INTERIUMOS/main/docs/screenshot2.png)
+![image](https://github.com/user-attachments/assets/5e01f30c-e133-44f7-9416-1049d400972c)
+
+![image](https://github.com/user-attachments/assets/d10e3d9c-10a8-42f0-a8f3-ae3978d888e7)
+
 
 ---
 
