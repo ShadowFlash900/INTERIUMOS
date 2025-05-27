@@ -30,38 +30,53 @@ class Colors:
 def color(text, c):
     return f"{c}{text}{Colors.ENDC}"
 
-CONFIG_FILE = "system_config.json"
-USER_FILE = "users.json"
-PROFILES_FILE = "profiles.json"
-HOME_DIR = "home"
-APPS_DIR = os.path.join(HOME_DIR, "apps")
-INSTALLED_APPS_FILE = os.path.join(HOME_DIR, "installed_apps.json")
+# ---------------- Файловая система ----------------
+ROOT_DIR = os.path.abspath(os.path.dirname(__file__))
+FS = {
+    "HOME_DIR": os.path.join(ROOT_DIR, "home"),
+    "ETC_DIR": os.path.join(ROOT_DIR, "etc"),
+    "TMP_DIR": os.path.join(ROOT_DIR, "tmp"),
+    "BOOT_DIR": os.path.join(ROOT_DIR, "boot"),
+    "ROOT_HOME": os.path.join(ROOT_DIR, "root"),
+    "USR_DIR": os.path.join(ROOT_DIR, "usr"),
+}
+APPS_DIR = os.path.join(FS["USR_DIR"], "apps")
+INSTALLED_APPS_FILE = os.path.join(FS["USR_DIR"], "installed_apps.json")
+CONFIG_FILE = os.path.join(FS["ETC_DIR"], "system_config.json")
+USER_FILE = os.path.join(FS["ETC_DIR"], "users.json")
+PROFILES_FILE = os.path.join(FS["ETC_DIR"], "profiles.json")
+SERVICES_FILE = os.path.join(FS["ETC_DIR"], "services.json")
 INTERIUM_UPDATE_URL = "https://github.com/ShadowFlash900/INTERIUMOS"
 QDUGUI_URL = "https://github.com/ShadowFlash900/QDUGUI"
 
-# --- Службы и сервисы (фейковая имитация для системы) ---
-SERVICES_FILE = "services.json"
-DEFAULT_SERVICES = {
-    "ssh": {"status": "stopped", "enabled": False},
-    "cron": {"status": "stopped", "enabled": False},
-    "nginx": {"status": "stopped", "enabled": False}
-}
+def create_fs():
+    for d in FS.values():
+        os.makedirs(d, exist_ok=True)
+    os.makedirs(APPS_DIR, exist_ok=True)
 
 def load_services():
+    # Только AdaptiveNetwork сервис
+    default = {
+        "AdaptiveNetwork": {"status": "running", "enabled": True}
+    }
     if os.path.exists(SERVICES_FILE):
         try:
             with open(SERVICES_FILE, "r") as f:
                 return json.load(f)
         except:
-            return DEFAULT_SERVICES.copy()
-    return DEFAULT_SERVICES.copy()
+            return default.copy()
+    return default.copy()
 
 def save_services(services):
     with open(SERVICES_FILE, "w") as f:
         json.dump(services, f, indent=4)
 
+def adaptive_network_required(os_system):
+    return os_system.services.get("AdaptiveNetwork", {}).get("status", "stopped") != "running"
+
 class InteriumOS:
     def __init__(self):
+        create_fs()
         self.current_user = None
         self.current_profile = None
         self.system_config = self.load_config()
@@ -71,7 +86,7 @@ class InteriumOS:
         self.current_dir = os.getcwd()
         self.is_root = False
         self.services = load_services()
-        self.create_dirs([HOME_DIR, APPS_DIR])
+        self.create_dirs([FS["HOME_DIR"], APPS_DIR, FS["ETC_DIR"], FS["TMP_DIR"], FS["BOOT_DIR"], FS["ROOT_HOME"], FS["USR_DIR"]])
         self.first_run_check()
 
     def create_dirs(self, dirs):
@@ -81,7 +96,7 @@ class InteriumOS:
 
     def load_config(self):
         default_config = {
-            "version": "1.4",
+            "version": "1.5",
             "ram": "1VGB",
             "rom": "1VGB",
             "system_name": "Interium OS",
@@ -105,7 +120,7 @@ class InteriumOS:
             "admin": {
                 "password": "admin",
                 "permissions": "full",
-                "home_dir": os.path.join(HOME_DIR, "admin")
+                "home_dir": FS["ROOT_HOME"]
             }
         }
         if os.path.exists(USER_FILE):
@@ -113,7 +128,7 @@ class InteriumOS:
                 with open(USER_FILE, "r") as f:
                     users = json.load(f)
                     for user, data in users.items():
-                        user_dir = data.get("home_dir", os.path.join(HOME_DIR, user))
+                        user_dir = data.get("home_dir", os.path.join(FS["HOME_DIR"], user))
                         if not os.path.exists(user_dir):
                             os.makedirs(user_dir, exist_ok=True)
                     return users
@@ -179,10 +194,10 @@ class InteriumOS:
                 self.users[username] = {
                     "password": password,
                     "permissions": "user",
-                    "home_dir": os.path.join(HOME_DIR, username)
+                    "home_dir": os.path.join(FS["HOME_DIR"], username)
                 }
                 self.save_users()
-                os.makedirs(os.path.join(HOME_DIR, username), exist_ok=True)
+                os.makedirs(os.path.join(FS["HOME_DIR"], username), exist_ok=True)
                 print(color(f"Пользователь {username} создан!", Colors.OKGREEN))
                 break
 
@@ -199,7 +214,7 @@ class InteriumOS:
                 if password == self.users[username]["password"]:
                     self.current_user = username
                     self.is_root = (username == "admin")
-                    user_dir = self.users[username].get("home_dir", os.path.join(HOME_DIR, username))
+                    user_dir = self.users[username].get("home_dir", os.path.join(FS["HOME_DIR"], username))
                     if not os.path.exists(user_dir):
                         os.makedirs(user_dir, exist_ok=True)
                     os.chdir(user_dir)
@@ -236,7 +251,18 @@ def run_py_app(app_name):
     else:
         print(color(f"Приложение {app_name} не найдено!", Colors.FAIL))
 
-def clone_repo(url):
+def animate_loading(message, seconds=3):
+    spinner = ['|', '/', '-', '\\']
+    print(color(message, Colors.LIGHTBLUE), end=' ')
+    for i in range(seconds*4):
+        print(color(spinner[i % 4], Colors.LIGHTBLUE), end='\r')
+        time.sleep(0.25)
+    print(' '*10, end='\r')
+
+def clone_repo(url, os_system):
+    if adaptive_network_required(os_system):
+        print(color("Сетевая функция отключена! Включите AdaptiveNetwork.", Colors.FAIL))
+        return False
     try:
         if not shutil.which("git"):
             print(color("Git не установлен в системе!", Colors.FAIL))
@@ -244,10 +270,11 @@ def clone_repo(url):
         repo_name = url.split("/")[-1]
         if repo_name.endswith(".git"):
             repo_name = repo_name[:-4]
-        clone_dir = os.path.join(HOME_DIR, repo_name)
+        clone_dir = os.path.join(FS["HOME_DIR"], repo_name)
         if os.path.exists(clone_dir):
             print(color(f"Директория {clone_dir} уже существует!", Colors.WARNING))
             return False
+        animate_loading("Клонирование репозитория...")
         subprocess.run(["git", "clone", url, clone_dir], check=True)
         print(color(f"Репозиторий успешно клонирован в {clone_dir}", Colors.OKGREEN))
         return True
@@ -287,7 +314,10 @@ def create_zip(source, zip_name):
         print(color(f"Ошибка при создании архива: {e}", Colors.FAIL))
         return False
 
-def ping(host):
+def ping(host, os_system):
+    if adaptive_network_required(os_system):
+        print(color("Сетевая функция отключена! Включите AdaptiveNetwork.", Colors.FAIL))
+        return
     try:
         print(color(f"Пинг {host}...", Colors.OKBLUE))
         result = subprocess.run(["ping", "-c", "4" if os.name != "nt" else "-n", "4", host], capture_output=True, text=True)
@@ -299,7 +329,7 @@ def file_manager():
     cls()
     current_dir = os.getcwd()
     print(color(f"Файловый менеджер (текущая директория: {current_dir})", Colors.OKGREEN))
-    print(color("Команды: ls, cd <dir>, mkdir <dir>, touch <file.ext>, rm <file>, exit", Colors.YELLOW))
+    print(color("Команды: ls, cd <dir>, mkdir <dir>, touch <file.ext>, rm <file>, mv <src> <dst>, cp <src> <dst>, cat <file>, run <cmd>, nano <file>, exit", Colors.YELLOW))
     while True:
         cmd = input(color("fm> ", Colors.OKBLUE)).strip().split()
         if not cmd:
@@ -350,8 +380,61 @@ def file_manager():
                 print(color(f"{target} удален", Colors.OKGREEN))
             except Exception as e:
                 print(color(f"Ошибка: {e}", Colors.FAIL))
+        elif cmd[0] == "mv" and len(cmd) > 2:
+            try:
+                shutil.move(cmd[1], cmd[2])
+                print(color(f"{cmd[1]} перемещён в {cmd[2]}", Colors.OKGREEN))
+            except Exception as e:
+                print(color(f"Ошибка при перемещении: {e}", Colors.FAIL))
+        elif cmd[0] == "cp" and len(cmd) > 2:
+            try:
+                if os.path.isdir(cmd[1]):
+                    shutil.copytree(cmd[1], cmd[2])
+                else:
+                    shutil.copy2(cmd[1], cmd[2])
+                print(color(f"{cmd[1]} скопирован в {cmd[2]}", Colors.OKGREEN))
+            except Exception as e:
+                print(color(f"Ошибка при копировании: {e}", Colors.FAIL))
+        elif cmd[0] == "cat" and len(cmd) > 1:
+            try:
+                with open(cmd[1], 'r', encoding="utf-8") as f:
+                    print(color(f.read(), Colors.GREY))
+            except Exception as e:
+                print(color(f"Ошибка при чтении файла: {e}", Colors.FAIL))
+        elif cmd[0] == "run" and len(cmd) > 1:
+            try:
+                result = subprocess.run(' '.join(cmd[1:]), shell=True, capture_output=True, text=True)
+                print(color(result.stdout, Colors.OKGREEN))
+                if result.stderr:
+                    print(color(result.stderr, Colors.FAIL))
+            except Exception as e:
+                print(color(f"Ошибка: {e}", Colors.FAIL))
+        elif cmd[0] == "nano" and len(cmd) > 1:
+            nano_editor(cmd[1])
         else:
             print(color("Неизвестная команда", Colors.WARNING))
+
+def nano_editor(filename):
+    lines = []
+    if os.path.exists(filename):
+        with open(filename, 'r', encoding='utf-8') as f:
+            lines = f.read().splitlines()
+    print(color(f"Редактор nano: {filename}. Для сохранения введите :w, для выхода :q", Colors.YELLOW))
+    print(color("Текущее содержимое файла:", Colors.GREY))
+    for l in lines:
+        print(l)
+    buffer = lines[:]
+    while True:
+        inp = input(color("nano> ", Colors.OKBLUE))
+        if inp == ":w":
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(buffer))
+            print(color("Файл сохранён", Colors.OKGREEN))
+        elif inp == ":q":
+            print(color("Выход из редактора", Colors.OKCYAN))
+            break
+        else:
+            buffer.append(inp)
 
 def system_settings(os_system):
     cls()
@@ -378,10 +461,10 @@ def system_settings(os_system):
                 os_system.users[username] = {
                     "password": password,
                     "permissions": "user",
-                    "home_dir": os.path.join(HOME_DIR, username)
+                    "home_dir": os.path.join(FS["HOME_DIR"], username)
                 }
                 os_system.save_users()
-                os.makedirs(os.path.join(HOME_DIR, username), exist_ok=True)
+                os.makedirs(os.path.join(FS["HOME_DIR"], username), exist_ok=True)
                 print(color("Пользователь создан!", Colors.OKGREEN))
             else:
                 print(color("Пароли не совпадают!", Colors.FAIL))
@@ -497,6 +580,9 @@ def get_repo_name_from_url(url):
     return None
 
 def download_release(os_system, repo_url, release_name=None):
+    if adaptive_network_required(os_system):
+        print(color("Сетевая функция отключена! Включите AdaptiveNetwork.", Colors.FAIL))
+        return False
     try:
         if "github.com" not in repo_url:
             print(color("Поддерживаются только GitHub репозитории", Colors.FAIL))
@@ -507,6 +593,7 @@ def download_release(os_system, repo_url, release_name=None):
             return False
         api_url = repo_url.replace("github.com", "api.github.com/repos").replace("/releases", "")
         releases_url = f"{api_url}/releases"
+        animate_loading("Получение информации о релизах...")
         response = requests.get(releases_url)
         response.raise_for_status()
         releases = response.json()
@@ -521,10 +608,9 @@ def download_release(os_system, repo_url, release_name=None):
             if not release:
                 print(color(f"Релиз {release_name} не найден", Colors.FAIL))
                 return False
-        if repo_name in os_system.installed_apps:
-            if release_name in os_system.installed_apps[repo_name]['versions']:
-                print(color(f"Версия {release_name} уже установлена", Colors.WARNING))
-                return False
+        if repo_name in os_system.installed_apps and release_name in os_system.installed_apps[repo_name]['versions']:
+            print(color(f"Версия {release_name} уже установлена", Colors.WARNING))
+            return False
         if not release['assets']:
             print(color("В релизе нет файлов для скачивания", Colors.WARNING))
             return False
@@ -533,6 +619,7 @@ def download_release(os_system, repo_url, release_name=None):
             for asset in release['assets']:
                 if asset['name'].endswith(('.py', '.zip', '.exe', '.sh')):
                     print(color(f"Скачивание {asset['name']}...", Colors.LIGHTBLUE))
+                    animate_loading(f"Загрузка {asset['name']}...", 4)
                     download_url = asset['browser_download_url']
                     file_path = os.path.join(temp_dir, asset['name'])
                     with requests.get(download_url, stream=True) as r:
@@ -563,13 +650,17 @@ def download_release(os_system, repo_url, release_name=None):
         print(color(f"Ошибка при скачивании релиза: {e}", Colors.FAIL))
         return False
 
-def get_releases_list(repo_url):
+def get_releases_list(repo_url, os_system):
+    if adaptive_network_required(os_system):
+        print(color("Сетевая функция отключена! Включите AdaptiveNetwork.", Colors.FAIL))
+        return False
     try:
         if "github.com" not in repo_url:
             print(color("Поддерживаются только GitHub репозитории", Colors.FAIL))
             return False
         api_url = repo_url.replace("github.com", "api.github.com/repos").replace("/releases", "")
         releases_url = f"{api_url}/releases"
+        animate_loading("Получение списка релизов...")
         response = requests.get(releases_url)
         response.raise_for_status()
         releases = response.json()
@@ -591,9 +682,13 @@ def get_releases_list(repo_url):
         return False
 
 def check_for_updates(os_system):
+    if adaptive_network_required(os_system):
+        print(color("Сетевая функция отключена! Включите AdaptiveNetwork.", Colors.FAIL))
+        return None
     try:
         api_url = INTERIUM_UPDATE_URL.replace("github.com", "api.github.com/repos")
         releases_url = f"{api_url}/releases/latest"
+        animate_loading("Проверка обновлений...")
         response = requests.get(releases_url)
         response.raise_for_status()
         latest_release = response.json()
@@ -610,12 +705,16 @@ def check_for_updates(os_system):
         return None
 
 def update_interium(os_system, version=None):
+    if adaptive_network_required(os_system):
+        print(color("Сетевая функция отключена! Включите AdaptiveNetwork.", Colors.FAIL))
+        return False
     try:
         api_url = INTERIUM_UPDATE_URL.replace("github.com", "api.github.com/repos")
         if version:
             releases_url = f"{api_url}/releases/tags/{version}"
         else:
             releases_url = f"{api_url}/releases/latest"
+        animate_loading("Загрузка обновления ядра...", 4)
         response = requests.get(releases_url)
         response.raise_for_status()
         release = response.json()
@@ -623,6 +722,7 @@ def update_interium(os_system, version=None):
             for asset in release["assets"]:
                 if asset["name"] == "interium.py":
                     print(color("Скачивание нового ядра системы...", Colors.OKBLUE))
+                    animate_loading("Загрузка interium.py...", 4)
                     download_url = asset["browser_download_url"]
                     file_path = os.path.join(temp_dir, asset["name"])
                     with requests.get(download_url, stream=True) as r:
@@ -693,16 +793,21 @@ def uninstall_app(os_system, repo_name, version=None):
     return True
 
 def get_app_from_qdugui(app_name, os_system):
+    if adaptive_network_required(os_system):
+        print(color("Сетевая функция отключена! Включите AdaptiveNetwork.", Colors.FAIL))
+        return False
     try:
         repo_url = QDUGUI_URL
         api_url = repo_url.replace("github.com", "api.github.com/repos")
         releases_url = f"{api_url}/releases/latest"
+        animate_loading("Получение релиза QDUGUI...")
         response = requests.get(releases_url)
         response.raise_for_status()
         release = response.json()
         for asset in release['assets']:
             if asset['name'].startswith(app_name):
                 print(color(f"Скачивание {asset['name']}...", Colors.LIGHTBLUE))
+                animate_loading(f"Загрузка {asset['name']}...", 4)
                 download_url = asset['browser_download_url']
                 file_path = os.path.join(APPS_DIR, asset['name'])
                 with requests.get(download_url, stream=True) as r:
@@ -711,7 +816,6 @@ def get_app_from_qdugui(app_name, os_system):
                         for chunk in r.iter_content(chunk_size=8192):
                             f.write(chunk)
                 print(color(f"{app_name} успешно установлен из QDUGUI!", Colors.OKGREEN))
-                # Можно занести в installed_apps
                 repo_name = get_repo_name_from_url(repo_url)
                 if repo_name not in os_system.installed_apps:
                     os_system.installed_apps[repo_name] = {
@@ -732,59 +836,10 @@ def get_app_from_qdugui(app_name, os_system):
 
 def sudo_required(cmd):
     sudo_cmds = [
-        "getfrom", "getapp", "uninstall", "getupdate", "clone", "zip", "unzip", "service", "systemctl", "exit", "quit"
+        "getfrom", "getapp", "uninstall", "getupdate", "clone", "zip", "unzip", "exit", "quit"
     ]
     return any(cmd.startswith(c) for c in sudo_cmds)
 
-def command_help(cmd):
-    helps = {
-        "getfrom": (
-            "getfrom <repo_url> [release] - установка приложения из GitHub-репозитория.\n"
-            "Требуются root-права (sudo).\n"
-            "Пример: sudo getfrom https://github.com/ShadowFlash900/QDUGUI\n"
-        ),
-        "getapp": (
-            "getapp <AppName> - установка официальной программы из QDUGUI.\n"
-            "Требуются root-права (sudo).\n"
-            "Пример: sudo getapp JustCalculator\n"
-        ),
-        "uninstall": (
-            "uninstall <repo> [version] - удалить приложение/версию.\n"
-            "Требуются root-права (sudo).\n"
-            "Пример: sudo uninstall ShadowFlash900_QDUGUI\n"
-        ),
-        "clone": (
-            "clone <git-url> - клонировать git-репозиторий.\n"
-            "Требуются root-права (sudo).\n"
-        ),
-        "zip": (
-            "zip <source> <target.zip> - создать zip-архив.\n"
-            "Требуются root-права (sudo).\n"
-        ),
-        "unzip": (
-            "unzip <file.zip> [target_dir] - распаковать zip-архив.\n"
-            "Требуются root-права (sudo).\n"
-        ),
-        "getupdate": (
-            "getupdate interium [version] - обновить ядро системы.\n"
-            "getupdate interium --check - проверить обновления.\n"
-            "Требуются root-права (sudo).\n"
-        ),
-        "service": (
-            "service <service> <start|stop|restart|status> - управление службой.\n"
-            "Требуются root-права (sudo).\n"
-        ),
-        "systemctl": (
-            "systemctl <start|stop|restart|enable|disable> <service> - управление автозапуском и состоянием службы.\n"
-            "Требуются root-права (sudo).\n"
-        ),
-        "ping": (
-            "ping <host> - проверить доступность хоста.\n"
-        ),
-    }
-    return helps.get(cmd, "Описание отсутствует.")
-
-# ---- Сервисные команды ----
 def service_command(cmd_args, os_system):
     if len(cmd_args) < 3:
         print(color("Пример: sudo service <service> <start|stop|restart|status>", Colors.WARNING))
@@ -839,7 +894,6 @@ def systemctl_command(cmd_args, os_system):
         print(color("Неизвестное действие", Colors.WARNING))
     save_services(services)
 
-# ---- Основная функция ----
 def main():
     os_system = InteriumOS()
     print(color(f"{os_system.system_config['system_name']} загружается...", Colors.HEADER))
@@ -860,26 +914,26 @@ def main():
             if not command:
                 continue
 
-            # sudo/root
             is_sudo = False
             raw_cmd = command
             if command.startswith("sudo "):
                 is_sudo = True
                 command = command[len("sudo "):]
 
-            # --help
-            if command.endswith("--help"):
-                base = command.split()[0]
-                print(color(command_help(base), Colors.YELLOW))
+            # echo
+            if command.startswith("echo "):
+                print(command[5:])
                 continue
 
-            # ping
+            if command.endswith("--help"):
+                print(color("Описание отсутствует.", Colors.YELLOW))
+                continue
+
             if command.startswith("ping "):
                 host = command.split()[1]
-                ping(host)
+                ping(host, os_system)
                 continue
 
-            # exit/quit
             if command in ("quit", "exit"):
                 if os_system.is_root or is_sudo:
                     print(color("Выход из Interium...", Colors.HEADER))
@@ -949,6 +1003,9 @@ def main():
                     color("ping", Colors.YELLOW) + " <host> - " + color("Пинговать адрес", Colors.YELLOW)
                 )
                 print(
+                    color("echo", Colors.YELLOW) + " <msg> - " + color("Вывести сообщение", Colors.YELLOW)
+                )
+                print(
                     color("quit/exit", Colors.YELLOW) + " - " + color("Выход", Colors.YELLOW)
                 )
                 continue
@@ -986,7 +1043,6 @@ def main():
                 run_py_app(app_name)
                 continue
 
-            # sudo-required команды
             if sudo_required(command.split()[0]):
                 if not (os_system.is_root or is_sudo):
                     print(color("Для выполнения этой команды требуются root-права. Используйте sudo.", Colors.WARNING))
@@ -995,7 +1051,7 @@ def main():
             if command.startswith("clone "):
                 url = command.split()[1]
                 print(color(url, Colors.LIGHTBLUE))
-                clone_repo(url)
+                clone_repo(url, os_system)
                 continue
 
             if command.startswith("zip "):
@@ -1029,7 +1085,7 @@ def main():
             if command.startswith("getlist "):
                 repo_url = command.split()[1]
                 print(color(repo_url, Colors.LIGHTBLUE))
-                get_releases_list(repo_url)
+                get_releases_list(repo_url, os_system)
                 continue
 
             if command == "getupdate interium --check":
