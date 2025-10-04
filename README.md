@@ -1,4 +1,4 @@
-# 🚀 Interium KERNEL (python поддержка приостановленна!)
+# 🚀 Interium KERNEL (python)
 
 ![INTERIUMLOGO](https://github.com/user-attachments/assets/9580ee5c-2191-4cfb-8a52-6164384a2779)
 
