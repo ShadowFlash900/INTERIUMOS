@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![Interium OS](https://img.shields.io/badge/Interium%20OS-9.1-blue?style=for-the-badge&logo=linux)
+![Interium OS](https://img.shields.io/badge/Interium%20OS-9-blue?style=for-the-badge&logo=linux)
 ![Python](https://img.shields.io/badge/Python-3.8%2B-green?style=for-the-badge&logo=python)
 ![Security](https://img.shields.io/badge/Security-Argon2id-red?style=for-the-badge&logo=security)
 ![License](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)
