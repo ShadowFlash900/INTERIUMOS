@@ -77,23 +77,24 @@ pip install bandit  # для расширенного анализа безоп�
 
 ### Автоматическая установка
 ```bash
-# Скачать и запустить
-git clone https://github.com/ShadowFlash900/INTERIUMOS
-cd INTERIUMOS
-python interium.py
+# Установите последнюю версию
+https://github.com/ShadowFlash900/INTERIUMOS/releases/latest
+
+# Запустите систему
+python launcher.bat
 ```
 
 ### Ручная установка
 ```bash
-# 1. Клонировать репозиторий
-git clone https://github.com/ShadowFlash900/INTERIUMOS
-cd INTERIUMOS
+# Установите последнюю версию
+https://github.com/ShadowFlash900/INTERIUMOS/releases/latest
+
 
 # 2. Установить зависимости
 pip install -r requirements.txt
 
-# 3. Запустить систему
-python interium.py
+# Запустите систему
+python launcher.bat
 
 # 4. Следовать инструкциям установщика
 ```
