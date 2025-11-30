@@ -3,7 +3,7 @@
 
 ![Version](https://img.shields.io/badge/version-9.3-blue.svg)
 ![Python](https://img.shields.io/badge/python-3.8+-green.svg)
-![Security](https://img.shields.io/badge/security-audited-yellow.svg)
+![Security](https://img.shields.io/badge/security-MIT-yellow.svg)
 
 **Interium OS** - безопасная модульная операционная система с современной системой аутентификации и встроенным статическим анализатором безопасности.
 
